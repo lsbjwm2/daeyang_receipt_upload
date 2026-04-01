@@ -1,4 +1,4 @@
-package com.daeyang.SmartFactoryWeb;
+package com.daeyang.ReceiptUpload;
 
 import java.security.NoSuchAlgorithmException;
 
@@ -6,8 +6,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class SmartFactoryApplication {
+public class ReceiptUploadApplication {
 	public static void main(String[] args) throws NoSuchAlgorithmException {
-		SpringApplication.run(SmartFactoryApplication.class, args);
+		SpringApplication.run(ReceiptUploadApplication.class, args);
 	}
 }

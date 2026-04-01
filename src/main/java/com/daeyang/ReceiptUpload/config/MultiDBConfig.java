@@ -1,4 +1,4 @@
-package com.daeyang.SmartFactoryWeb.config;
+package com.daeyang.ReceiptUpload.config;
 
 import javax.sql.DataSource;
 

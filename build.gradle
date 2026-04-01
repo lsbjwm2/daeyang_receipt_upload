@@ -6,7 +6,7 @@ plugins {
 
 group = 'com.daeyang'
 version = '0.0.1-SNAPSHOT'
-description = 'SmartFactoryWeb'
+description = 'ReceiptUpload'
 
 java {
 	toolchain {

@@ -1,4 +1,4 @@
-package com.daeyang.SmartFactoryWeb.filter;
+package com.daeyang.ReceiptUpload.filter;
 
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;

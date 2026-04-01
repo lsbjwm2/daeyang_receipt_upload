@@ -1,4 +1,4 @@
-package com.daeyang.SmartFactoryWeb.config;
+package com.daeyang.ReceiptUpload.config;
 
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;

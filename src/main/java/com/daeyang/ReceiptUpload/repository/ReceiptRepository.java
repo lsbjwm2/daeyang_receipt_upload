@@ -1,4 +1,4 @@
-package com.daeyang.SmartFactoryWeb.repository;
+package com.daeyang.ReceiptUpload.repository;
 
 import java.util.Map;
 
