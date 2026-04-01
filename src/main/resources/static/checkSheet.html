@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>안전한 일터 핵심 확인사항 (자체점검표)</title>
+	<link rel="stylesheet" href="css/base.css" />
+	<link rel="stylesheet" href="css/checksheetForm.css" />
+	<link rel="shortcut icon" href="picon.ico" type="image/xicon" />
+</head>
+
+<nav class="side-menu" id="sideMenu" aria-hidden="true">
+	<div class="side-menu-header">
+		<span class="side-menu-title">메뉴</span>
+		<button type="button" class="menu-close" aria-label="메뉴 닫기">
+			✕
+		</button>
+	</div>
+	<ul class="side-menu-list">
+		<li>
+			<button type="button" class="side-menu-item" id="menuForm">
+				점검표 작성
+			</button>
+		</li>
+		<li>
+			<button type="button" class="side-menu-item" id="menuChecksheetList">
+				점검표 조회
+			</button>
+		</li>
+		<li>
+			<button type="button" class="side-menu-item" id="menuLogout">
+				로그아웃
+			</button>
+		</li>
+	</ul>
+</nav>
+
+<div class="side-menu-backdrop" id="sideMenuBackdrop"></div>
+
+<body>
+	<div class="container">
+		<header class="app-header">
+			<button type="button" class="menu-toggle" aria-label="메뉴 열기">
+				<span></span>
+				<span></span>
+				<span></span>
+			</button>
+
+			<h1 class="app-title">
+				안전한 일터 자체점검표
+			</h1>
+		</header>
+
+		<!-- 상단 메타 정보 -->
+		<fieldset>
+			<legend>기본 정보</legend>
+			<div class="fieldset-box">
+				<div class="grid">
+					<div class="row">
+						<label for="date">점검일자</label>
+						<div class="input-shell">
+							<input id="date" name="date" type="date" required />
+						</div>
+					</div>
+					<div class="row">
+						<label for="dept">점검부서</label>
+						<input id="dept" name="dept" type="text" value="생산팀(MS)" required />
+					</div>
+					<div class="form-row">
+					  <label for="placeSelect">점검장소</label>
+					  <select id="placeSelect" name="place" required>
+						<option value="가공반">가공반</option>
+						<option value="조립반">조립반</option>
+					  </select>
+					</div>
+					<div class="row">
+						<label for="inspector">점검자</label>
+						<input id="inspector" name="inspector" type="text" placeholder="예: 홍길동" required />
+					</div>
+					<div class="row">
+						<label for="startTime">점검 시작</label>
+						<div class="input-shell">
+							<input id="startTime" name="startTime" type="time" required />
+						</div>
+					</div>
+					<div class="row">
+						<label for="endTime">점검 종료</label>
+						<div class="input-shell">
+							<input id="endTime" name="endTime" type="time" required />
+						</div>
+					</div>
+				</div>
+			</div>
+		</fieldset>
+
+		<!-- 점검 섹션: JS에서 동적 렌더링 -->
+		<div id="sections"></div>
+
+		<!-- 하단 고정 버튼 -->
+		<div class="actions">
+			<button id="submitBtn">제출</button>
+		</div>
+	</div>
+
+	<script>
+		// === 햄버거 메뉴 토글 ===
+		const menuToggle = document.querySelector(".menu-toggle");
+		const sideMenu = document.getElementById("sideMenu");
+		const sideMenuBackdrop = document.getElementById("sideMenuBackdrop");
+		const menuCloseBtn = document.querySelector(".menu-close");
+		
+		const KEY = "CHECKSHEET_EMP_NO";
+		const userId = "CHECKSHEET_EMP_ID";
+		const userPw = "CHECKSHEET_EMP_PW";
+
+		function openMenu() {
+			sideMenu.classList.add("open");
+			sideMenuBackdrop.classList.add("show");
+			document.body.classList.add("no-scroll");
+			sideMenu.setAttribute("aria-hidden", "false");
+		}
+
+		function closeMenu() {
+			sideMenu.classList.remove("open");
+			sideMenuBackdrop.classList.remove("show");
+			document.body.classList.remove("no-scroll");
+			sideMenu.setAttribute("aria-hidden", "true");
+		}
+
+		menuToggle.addEventListener("click", openMenu);
+		menuCloseBtn.addEventListener("click", closeMenu);
+		sideMenuBackdrop.addEventListener("click", closeMenu);
+
+		// ESC 키로도 닫기
+		document.addEventListener("keydown", (e) => {
+			if (e.key === "Escape" && sideMenu.classList.contains("open")) {
+				closeMenu();
+			}
+		});
+
+		// === 메뉴 항목 클릭 ===
+		document.getElementById("menuForm")
+			.addEventListener("click", () => {
+				closeMenu();
+				location.href = "checkSheet.html";
+			});
+
+		document.getElementById("menuChecksheetList")
+			.addEventListener("click", () => {
+				closeMenu();
+				location.href = "checksheet-list.html";
+			});
+
+		document.getElementById("menuLogout")
+			.addEventListener("click", () => {
+				closeMenu();
+				localStorage.removeItem(KEY);
+				localStorage.removeItem(userId);
+				localStorage.removeItem(userPw);
+				location.replace("/checksheet-login.html");
+			});
+
+		function formatDateLocal(d) {
+			const y = d.getFullYear();
+			const m = String(d.getMonth() + 1).padStart(2, "0");
+			const day = String(d.getDate()).padStart(2, "0");
+			return `${y}-${m}-${day}`;
+		}
+
+		// === 1) 기본 날짜 & 시간 ===
+		const now = new Date();
+		const dateInput = document.getElementById("date");
+		const startInput = document.getElementById("startTime");
+		const endInput = document.getElementById("endTime");
+
+		// 오늘 날짜
+		const todayStr = formatDateLocal(now);
+		dateInput.value = todayStr;
+		// 점검일자는 오늘 이후 날짜를 선택 못 하도록 제한
+		dateInput.max = todayStr;
+
+		// HH:mm 포맷으로 변환
+		function toHHMM(d) {
+			return d.toTimeString().slice(0, 5); // 예: "16:03"
+		}
+
+		// === 점검 시작/종료 기본값 (오전/오후 구분) ===
+		const hour = now.getHours(); // 0~23
+
+		if (hour < 12) {
+		  // 오전
+		  startInput.value = "09:00";
+		  endInput.value = "10:00";
+		} else {
+		  // 오후
+		  startInput.value = "15:10";
+		  endInput.value = "16:00";
+		}
+
+		// === 2) 섹션/항목 정의 ===
+		const sections = [
+			{
+				id: "fall-prevention",
+				title: "추락사고 예방",
+				items: [
+					{id: "helmet-belt", label: "안전모·안전대 지급 및 착용 확인"},
+					{id: "work-platform", label: "작업발판 구조·설치 상태 적정"},
+					{id: "platform-rail", label: "작업발판 단부 안전난간 설치"},
+					{id: "stairway", label: "철골 승강로(안전한 이동 통로) 설치"},
+					{id: "fall-net", label: "추락방호망·안전대 부착설비 설치"},
+					{id: "belt-precheck", label: "작업 전 안전대·부속설비 이상 유무 점검"},
+					{id: "roof-board", label: "강도가 약한 지붕 위 작업 시 폭 30cm 이상 작업발판 설치"},
+					{id: "roof-rail", label: "지붕 단부 안전난간 설치"},
+					{id: "roof-net", label: "난간 설치 곤란 시 추락방호망 설치"},
+					{id: "opening-cover", label: "개구부·단부 덮개/울타리 등 추락 방호조치"},
+					{id: "safe-passage", label: "안전통로 확보·유지"},
+				],
+			},
+			{
+				id: "collision-prevention",
+				title: "부딪힘사고 예방",
+				items: [
+					{id: "no-entry", label: "작업관계자 외 출입금지 조치"},
+					{id: "passage-light", label: "통로 채광/조명시설 적정(≥75 lux)"},
+					{id: "passage-keep", label: "통로 안전 사용 상태 유지"},
+					{id: "workplan-record", label: "작업계획서 사전조사 및 결과 기록·보존"},
+					{id: "workplan-make", label: "작업계획서 작성 시 사전조사  결과 반영"},
+					{id: "workplan-announce", label: "근로자 고지 및 계획 준수 작업"},
+					{id: "supervisor-assign", label: "작업지휘자·유도자·신호수 지정 배치"},
+					{id: "machine-guard", label: "기계 결함/방호장치 작동 확인"},
+					{id: "no-misuse", label: "기계·설비 목적 외 사용 금지"},
+					{id: "vehicle-limit", label: "차량계·건설기계 제한속도 지정"},
+					{id: "qualification", label: "자격·면허·경험 필요한 작업 배치"},
+				],
+			},
+			{
+				id: "entanglement-prevention",
+				title: "끼임사고 예방",
+				items: [
+					{id: "guard-installed", label: "방호덮개/가드 설치 및 정상 작동"},
+					{id: "no-bypass", label: "방호장치 임의 해제 금지"},
+					{id: "e-stop", label: "비상정지장치 설치 및 정상 작동"},
+					{id: "power-cut", label: "정비 시 전원 차단"},
+					{id: "lockout", label: "잠금장치 또는 표지판 설치"},
+					{id: "cert-inspect", label: "안전인증·안전검사 적정"},
+				],
+			},
+			{
+				id: "asphyxia-prevention",
+				title: "질식사고 예방",
+				items: [
+					{id: "confined-identify", label: "위험 밀폐공간 파악"},
+					{id: "rule-check", label: "책임자 안전조치 확인 후 작업 규정"},
+					{id: "vent-equip", label: "환기설비·송풍기·송기마스크/공기호흡기 보유"},
+					{id: "confined-warning", label: "출입금지 조치 및 경고표시"},
+					{id: "o2-gas-meter", label: "산소/유해가스 측정기 보유"},
+					{id: "o2-gas-check", label: "작업 전·중 산소 및 유해가스 농도 측정 상태 확인"},
+					{id: "ventilation-airline-use", label: "작업 전·중 환기 및 송기마스크·공기호흡기 사용"},
+					{id: "entry-exit-headcount-check", label: "밀폐공간 출입 근로자 인원 점검"},
+					{id: "confined-space-emergency-drill", label: "밀폐공간 긴급구조훈련 정기 실시(예: 6개월 1회)"},
+					{id: "confined-space-watcher-assignment", label: "밀폐공간 작업 시 외부 감시인 배치"},
+					{id: "worker-watcher-training", label: "작업자·감시인 대상 안전한 작업방법 교육"}
+				],
+			},
+			{
+				id: "fire-explosion-prevention",
+				title: "화재·폭발사고 예방",
+				items: [
+					{id: "dangerous-goods-storage", label: "위험물을 별도 장소 보관 및 필요량만 비치"},
+					{id: "explosion-fire-prevention-measures", label: "폭발·화재·누출 방지 위한 방호조치"},
+					{id: "path-safe-maintenance", label: "통로가 안전하게 사용될 수 있도록 유지"},
+					{id: "flammable-gas-ventilation", label: "인화성가스 체류 방지를 위한 환기장치 설치"},
+					{id: "welding-fire-watch", label: "용접·용단 작업 시 화재감시자 배치"},
+					{id: "no-open-flame-area", label: "화재·폭발 우려 장소에서 화기 사용 금지"},
+					{id: "emergency-exit-installation", label: "출입문 외 비상구 1개 이상 설치 및 사용 가능"},
+					{id: "fire-alarm-equipment", label: "화재 등 비상상황용 경보설비·기구 설치"},
+					{id: "fire-extinguishing-equipment", label: "적합한 소화설비 비치 및 사용"},
+					{id: "msds-training", label: "MSDS 대상 물질 취급 근로자 교육"},
+					{id: "msds-posting", label: "작업장 내 MSDS를 근로자가 보기 쉽게 게시"},
+					{id: "msds-warning-label", label: "MSDS 대상 물질 용기·포장에 경고표시 부착"}
+				]
+			},
+			{
+				id: "heat-illness-prevention",
+				title: "폭염에 의한 건강장해 예방",
+				items: [
+					{id: "drinking-water-and-salt", label: "땀 많이 흘리는 장소에 소금·생수 등 충분히 비치"},
+					{id: "cooling-ventilation-system", label: "냉방·통풍 등 온·습도 조절 장치 설치·가동"},
+					{id: "worktime-adjustment-heat", label: "작업시간대 조정 등 폭염 노출 감소 조치"},
+					{id: "rest-interval-moderate-heat", label: "체감온도 상승 시 적절한 주기별 휴식 부여"},
+					{id: "rest-interval-high-heat", label: "체감온도 33℃ 이상 시 매 시간 충분한 휴식 부여"},
+					{id: "shade-for-outdoor-work", label: "옥외 작업 시 그늘진 장소 제공"},
+					{id: "rest-facility-installation", label: "휴게시설 설치 및 설치·관리 기준 준수"},
+					{id: "personal-cooling-or-cooling-gear", label: "휴식 부여 곤란 시 개인용 냉방·통풍장치 또는 보냉장구 지급·가동"},
+					{id: "heat-illness-emergency-response", label: "온열질환 의심자 발생 시 즉시 119 신고 등 응급조치"}
+				]
+			}
+		];
+
+		// 기본 점검결과 매핑
+		// 가공반 기본 점검결과 세팅
+		const DEFAULT_RESULT_MACHINING = {
+		  "helmet-belt": "적합",
+		  "work-platform": "해당 없음",
+		  "platform-rail": "해당 없음",
+		  "stairway": "해당 없음",
+		  "fall-net": "해당 없음",
+		  "belt-precheck": "해당 없음",
+		  "roof-board": "해당 없음",
+		  "roof-rail": "해당 없음",
+		  "roof-net": "해당 없음",
+		  "opening-cover": "적합",
+		  "safe-passage": "적합",
+
+		  "no-entry": "적합",
+		  "passage-light": "적합",
+		  "passage-keep": "적합",
+		  "workplan-record": "적합",
+		  "workplan-make": "적합",
+		  "workplan-announce": "적합",
+		  "supervisor-assign": "적합",
+		  "machine-guard": "적합",
+		  "no-misuse": "적합",
+		  "vehicle-limit": "적합",
+		  "qualification": "적합",
+
+		  "guard-installed": "적합",
+		  "no-bypass": "적합",
+		  "e-stop": "적합",
+		  "power-cut": "적합",
+		  "lockout": "적합",
+		  "cert-inspect": "적합",
+
+		  "confined-identify": "적합",
+		  "rule-check": "적합",
+		  "vent-equip": "적합",
+		  "confined-warning": "적합",
+		  "o2-gas-meter": "적합",
+		  "o2-gas-check": "적합",
+		  "ventilation-airline-use": "적합",
+		  "entry-exit-headcount-check": "적합",
+		  "confined-space-emergency-drill": "적합",
+		  "confined-space-watcher-assignment": "적합",
+		  "worker-watcher-training": "적합",
+
+		  "dangerous-goods-storage": "적합",
+		  "explosion-fire-prevention-measures": "적합",
+		  "path-safe-maintenance": "적합",
+		  "flammable-gas-ventilation": "적합",
+		  "welding-fire-watch": "적합",
+		  "no-open-flame-area": "적합",
+		  "emergency-exit-installation": "적합",
+		  "fire-alarm-equipment": "적합",
+		  "fire-extinguishing-equipment": "적합",
+		  "msds-training": "적합",
+		  "msds-posting": "적합",
+		  "msds-warning-label": "적합",
+
+		  "drinking-water-and-salt": "적합",
+		  "cooling-ventilation-system": "적합",
+		  "worktime-adjustment-heat": "적합",
+		  "rest-interval-moderate-heat": "적합",
+		  "rest-interval-high-heat": "적합",
+		  "shade-for-outdoor-work": "적합",
+		  "rest-facility-installation": "적합",
+		  "personal-cooling-or-cooling-gear": "적합",
+		  "heat-illness-emergency-response": "적합",
+		};
+		
+		// 조립반 기본 점검결과 세팅
+		const DEFAULT_RESULT_ASSEMBLY = {
+			"opening-cover": "해당 없음",
+			"vehicle-limit": "해당 없음",
+		};
+
+		// value alias (혹시 PASS/NA 쓰는 경우 대비)
+		const RESULT_ALIASES = {
+		  "적합": ["적합", "PASS", "OK"],
+		  "부적합": ["부적합", "FAIL", "NG"],
+		  "해당 없음": ["해당 없음", "NA", "N/A"]
+		};
+
+		function buildPlaceDefaults(place) {
+		  const base = { ...DEFAULT_RESULT_MACHINING };
+
+		  if (place === "조립반") {
+		    return { ...base, ...DEFAULT_RESULT_ASSEMBLY };
+		  }
+
+		  return base;
+		}
+
+		// name 규칙: `${sectionId}.${itemId}.result`
+		function toRadioName(sectionId, itemId) {
+		  return `${sectionId}.${itemId}.result`;
+		}
+
+		function clearAllRadios() {
+		  document.querySelectorAll('input[type="radio"]').forEach(r => (r.checked = false));
+		}
+
+		function applyDefaultsByPlace(place) {
+		  const defaults = buildPlaceDefaults(place);
+
+		  // ✅ 장소 바뀌면 강제로 전체를 해당 장소 기본값으로 세팅
+		  clearAllRadios();
+
+		  for (const sec of sections) {
+		    for (const item of sec.items) {
+		      const itemId = item.id;
+		      const resultKor = defaults[itemId];
+		      if (!resultKor) continue;
+
+		      const nameKey = toRadioName(sec.id, itemId);
+		      const radios = Array.from(
+		        document.querySelectorAll(`input[type="radio"][name="${CSS.escape(nameKey)}"]`)
+		      );
+		      if (radios.length === 0) continue;
+
+		      const candidates = RESULT_ALIASES[resultKor] || [resultKor];
+		      const target = radios.find(r => candidates.includes((r.value || "").trim()));
+		      if (target) {
+		        target.checked = true;
+		        target.dispatchEvent(new Event("change", { bubbles: true }));
+		      }
+		    }
+		  }
+		}
+		
+		// === 3) 동적 렌더링 ===
+		const root = document.getElementById("sections");
+		sections.forEach((sec) => {
+			const secDiv = document.createElement("div");
+			secDiv.className = "section";
+			const h3 = document.createElement("h3");
+			h3.textContent = sec.title;
+			secDiv.appendChild(h3);
+
+			sec.items.forEach((item) => {
+				const wrap = document.createElement("div");
+				wrap.className = "item";
+
+				const title = document.createElement("div");
+				title.className = "item-title";
+				title.textContent = item.label;
+
+				const radios = document.createElement("div");
+				radios.className = "radio-group";
+				["적합", "부적합", "해당 없음"].forEach((val) => {
+					const label = document.createElement("label");
+					const r = document.createElement("input");
+					r.type = "radio";
+					r.name = `${sec.id}.${item.id}.result`;
+					r.value = val;
+					r.required = true;
+
+					label.appendChild(r);
+					label.appendChild(document.createTextNode(" " + val));
+					radios.appendChild(label);
+				});
+
+				const actionLabel = document.createElement("label");
+				actionLabel.textContent = "조치사항";
+				actionLabel.style.display = "block";
+				actionLabel.style.marginTop = "6px";
+
+				const action = document.createElement("textarea");
+				action.name = `${sec.id}.${item.id}.action`;
+				action.placeholder = "필요 시 조치사항을 입력하세요";
+
+				/*전자 결재 상신 방식으로 변경을 위해 이미지 첨부 기능 제거 - 260113_LHJ*/
+				/*const file = document.createElement("input");
+				file.type = "file";
+				file.accept = "image/*";
+				file.multiple = true;
+				file.name = `${sec.id}.${item.id}.images`;
+				file.style.marginTop = "6px";
+
+				const preview = document.createElement("div");
+				preview.className = "images";
+				file.addEventListener("change", () => {
+					preview.innerHTML = "";
+					[...file.files].forEach((f) => {
+						const img = document.createElement("img");
+						img.className = "thumb";
+						img.src = URL.createObjectURL(f);
+						preview.appendChild(img);
+					});
+				});*/
+
+				wrap.appendChild(title);
+				wrap.appendChild(radios);
+				wrap.appendChild(actionLabel);
+				wrap.appendChild(action);
+				//wrap.appendChild(file);
+				//wrap.appendChild(preview);
+				secDiv.appendChild(wrap);
+			});
+
+			root.appendChild(secDiv);
+		});
+
+		// === X) 유효성 검사 ===
+		function validateForm() {
+			const date = document.getElementById("date");
+			const dept = document.getElementById("dept");
+			const place = document.getElementById("placeSelect");
+			const inspector = document.getElementById("inspector");
+			const startTime = document.getElementById("startTime");
+			const endTime = document.getElementById("endTime");
+
+			// 상단 기본 정보 필수
+			if (!date.value) {
+				alert("점검일자를 입력해 주세요.");
+				date.scrollIntoView({behavior: "smooth", block: "center"});
+				date.focus();
+				return false;
+			}
+			// 점검일자는 오늘 이후 날짜로 선택할 수 없음 (혹시 브라우저에서 우회했을 경우 대비)
+			const todayStr = formatDateLocal(new Date());
+			if (date.value > todayStr) {
+				alert("점검일자는 오늘 이후 날짜로 선택할 수 없습니다.");
+				date.scrollIntoView({behavior: "smooth", block: "center"});
+				date.focus();
+				return false;
+			}
+			if (!dept.value.trim()) {
+				alert("점검부서를 확인해 주세요.");
+				dept.scrollIntoView({behavior: "smooth", block: "center"});
+				dept.focus();
+				return false;
+			}
+			if (!place.value.trim()) {
+				alert("점검장소를 입력해 주세요.");
+				place.scrollIntoView({behavior: "smooth", block: "center"});
+				place.focus();
+				return false;
+			}
+			if (!inspector.value.trim()) {
+				alert("점검자를 입력해 주세요.");
+				inspector.scrollIntoView({behavior: "smooth", block: "center"});
+				inspector.focus();
+				return false;
+			}
+			if (!startTime.value) {
+				alert("점검 시작 시간을 입력해 주세요.");
+				startTime.scrollIntoView({behavior: "smooth", block: "center"});
+				startTime.focus();
+				return false;
+			}
+			if (!endTime.value) {
+				alert("점검 종료 시간을 입력해 주세요.");
+				endTime.scrollIntoView({behavior: "smooth", block: "center"});
+				endTime.focus();
+				return false;
+			}
+			
+			const selectedDate = date.value;       // "YYYY-MM-DD"
+			const selectedStart = startTime.value; // "HH:MM"
+			const start = startInput.value;
+			const end = endInput.value;
+			
+			if (selectedDate && selectedStart) {
+				const selectedDateTime = new Date(`${selectedDate}T${selectedStart}`);
+				const now = new Date();
+
+				if (selectedDateTime.getTime() > now.getTime()) {
+					alert("점검 시작 시간은 현재 시각 이후로 입력할 수 없습니다.");
+					startTime.scrollIntoView({behavior: "smooth", block: "center"});
+					startTime.focus();
+					return false;
+				}
+				
+				if (!isEndAfterStart(start, end)) {
+				    alert("점검 종료 시간은 시작 시간보다 늦어야 합니다.");
+				    endInput.focus();
+				    e.preventDefault();
+				    return;
+				}
+			}
+
+			// 점검 항목 필수: 라디오 선택 여부 + 부적합이면 조치사항 필수
+			for (const sec of sections) {
+				for (const item of sec.items) {
+					const result = document.querySelector(
+						`input[name="${sec.id}.${item.id}.result"]:checked`
+					);
+					const action = document.querySelector(
+						`textarea[name="${sec.id}.${item.id}.action"]`
+					);
+
+					if (!result) {
+						alert(
+							`[${sec.title}] "${item.label}" 항목의 점검결과를 선택해 주세요.`
+						);
+						// 해당 항목 위치로 스크롤
+						const anyRadio = document.querySelector(
+							`input[name="${sec.id}.${item.id}.result"]`
+						);
+						if (anyRadio) {
+							anyRadio.scrollIntoView({behavior: "smooth", block: "center"});
+							anyRadio.focus();
+						}
+						return false;
+					}
+
+					if (result.value === "부적합") {
+						const text = action ? action.value.trim() : "";
+						if (!text) {
+							alert(
+								`[${sec.title}] "${item.label}" 항목은 부적합이므로 조치사항을 입력해 주세요.`
+							);
+							if (action) {
+								action.scrollIntoView({behavior: "smooth", block: "center"});
+								action.focus();
+							}
+							return false;
+						}
+					}
+				}
+			}
+
+			// 모든 검증 통과
+			return true;
+		}
+		
+		function isEndAfterStart(start, end) {
+		  if (!start || !end) return true; // 값 없을 땐 검사 안 함
+		  return end > start; // "HH:MM" 문자열은 이 비교가 그대로 먹힘
+		}
+
+		// === 4) 제출(JSON or multipart) ===
+		function collectData() {
+			const data = {
+				date: document.getElementById("date").value,
+				dept: document.getElementById("dept").value.trim(),
+				place: document.getElementById("placeSelect").value.trim(),
+				inspector: document.getElementById("inspector").value.trim(),
+				startTime: document.getElementById("startTime").value,
+				endTime: document.getElementById("endTime").value,
+				sections: {},
+			};
+			sections.forEach((sec) => {
+				data.sections[sec.id] = {};
+				sec.items.forEach((item) => {
+					const result = document.querySelector(
+						`input[name="${sec.id}.${item.id}.result"]:checked`
+					);
+					const action = document.querySelector(
+						`textarea[name="${sec.id}.${item.id}.action"]`
+					);
+					/*전자 결재 상신 방식으로 변경을 위해 이미지 첨부 기능 제거 - 260113_LHJ*/
+					/*const files = document.querySelector(
+						`input[name="${sec.id}.${item.id}.images"]`
+					).files;*/
+					data.sections[sec.id][item.id] = {
+						result: result ? result.value : null,
+						action: action ? action.value.trim() : "",
+						/*전자 결재 상신 방식으로 변경을 위해 이미지 첨부 기능 제거 - 260113_LHJ*/
+						/*images: Array.from(files).map((f) => ({
+							name: f.name,
+							size: f.size,
+							type: f.type,
+						})),*/
+					};
+				});
+			});
+			return data;
+		}
+
+		// === 이미지 압축 관련 유틸 ===
+		// file: File -> Blob (리사이즈 + JPEG 압축)
+		function resizeImageToBlob(file, maxWidth = 1600, maxHeight = 1600, quality = 0.8) {
+			return new Promise((resolve, reject) => {
+				const img = new Image();
+				const url = URL.createObjectURL(file);
+
+				img.onload = () => {
+					let w = img.width;
+					let h = img.height;
+
+					// 비율 유지하면서 최대 크기 안으로 줄이기
+					const scale = Math.min(maxWidth / w, maxHeight / h, 1);
+					w = Math.round(w * scale);
+					h = Math.round(h * scale);
+
+					const canvas = document.createElement("canvas");
+					canvas.width = w;
+					canvas.height = h;
+					const ctx = canvas.getContext("2d");
+					ctx.drawImage(img, 0, 0, w, h);
+
+					canvas.toBlob(
+						(blob) => {
+							URL.revokeObjectURL(url);
+							if (!blob) {
+								reject(new Error("이미지 압축 실패"));
+								return;
+							}
+							resolve(blob);
+						},
+						"image/jpeg",
+						quality
+					);
+				};
+
+				img.onerror = () => {
+					URL.revokeObjectURL(url);
+					reject(new Error("이미지 로드 실패"));
+				};
+
+				img.src = url;
+			});
+		}
+
+		// 일정 크기 이상이면 압축, 아니면 원본 그대로 사용
+		async function compressImageIfNeeded(file) {
+			const LIMIT = 1024 * 1024; // 1MB 이상이면 압축
+			if (file.size <= LIMIT) {
+				return file;
+			}
+
+			const blob = await resizeImageToBlob(file);
+			const baseName = file.name.replace(/\.[^/.]+$/, ""); // 확장자 제거
+			return new File([blob], `${baseName}.jpg`, {type: "image/jpeg"});
+		}
+
+		const submitBtn = document.getElementById("submitBtn");
+
+		submitBtn.addEventListener("click", async () => {
+			// 검증
+			if (!validateForm()) {
+				// 하나라도 빠졌으면 서버로 전송하지 않음
+				return;
+			}
+
+			// 버튼 잠시 비활성화 (중복 클릭 방지)
+			submitBtn.disabled = true;
+			const originalText = submitBtn.textContent;
+			submitBtn.textContent = "제출 중...";
+
+			// JSON + 파일 FormData로 구성
+			const json = collectData();
+			const form = new FormData();
+			form.append(
+				"payload",
+				new Blob([JSON.stringify(json)], {type: "application/json"})
+			);
+			// 이미지 파일 압축 후 FormData에 추가하는 부분 (비동기)
+			/*전자 결재 상신 방식으로 변경을 위해 이미지 첨부 기능 제거 - 260113_LHJ*/
+			/*for (const sec of sections) {
+				for (const item of sec.items) {
+					const input = document.querySelector(
+						`input[name="${sec.id}.${item.id}.images"]`
+					);
+					if (!input || !input.files) continue;
+
+					for (const f of input.files) {
+						const compressedFile = await compressImageIfNeeded(f);
+						form.append(
+							`files[${sec.id}][${item.id}][]`,
+							compressedFile,
+							compressedFile.name
+						);
+					}
+				}
+			}*/
+
+			// 서버로 전송
+			try {
+				const res = await fetch("/api/checksheets", {
+					method: "POST",
+					body: form,
+				});
+				
+				const result = await res.json();
+				alert("제출되었습니다.");
+
+				console.log(result);
+				
+				if (res.ok) {
+					location.href = location.href;
+				} else {
+					let message = "";
+					message = result.message;
+					if ("" != message) {
+						alert (message);
+					} else {
+						alert("제출 중 오류가 발생했습니다.");
+					}
+				}
+			} catch (e) {
+				console.error(e);
+				alert("제출 중 오류가 발생했습니다.");
+			} finally {
+				submitBtn.disabled = false;
+				submitBtn.textContent = originalText;
+			}
+		});
+		
+		document.addEventListener("DOMContentLoaded", async () => {
+		    // 1) 사번 확인
+		    const empNo = localStorage.getItem(KEY);
+		    if (!empNo) {
+		      location.replace("/checksheet-login.html");
+		      return;
+		    }
+
+		    // 2) 사번으로 사용자 정보 조회 → 점검부서/점검자 자동 입력
+		    try {
+		      const res = await fetch(`/api/checksheets/me?empNo=${encodeURIComponent(empNo)}`);
+		      if (!res.ok) {
+		        // DB에 사번이 없거나 오류면 저장값 제거 후 다시 로그인
+		        localStorage.removeItem(KEY);
+				localStorage.removeItem(userId);
+				localStorage.removeItem(userPw);
+		        location.replace("/checksheet-login.html?error=1");
+		        return;
+		      }
+		      const me = await res.json(); // { teamName, name }
+
+		      const dept = document.getElementById("dept");
+		      const inspector = document.getElementById("inspector");
+		      if (dept) dept.value = me.teamName + "(MS)" ?? "";
+		      if (inspector) inspector.value = me.name ?? "";
+		    } catch (e) {
+			  console.error(e);
+			  alert("로그인 처리 중 오류가 발생했습니다.");
+		      return;
+		    }
+
+		    const placeSelect = document.getElementById("placeSelect");
+		    if (!placeSelect) return;
+
+		    setTimeout(() => applyDefaultsByPlace(placeSelect.value), 0);
+
+		    placeSelect.addEventListener("change", () => {
+		      applyDefaultsByPlace(placeSelect.value);
+		    });
+		  });
+	</script>
+</body>
+
+</html>

@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>영수증 업로드</title>
+	<link rel="stylesheet" href="css/base.css" />
+	<link rel="stylesheet" href="css/receipt-upload.css" />
+	<link rel="shortcut icon" href="picon.ico" type="image/x-icon" />
+</head>
+
+<body class="receipt-page">
+	<nav class="side-menu" id="sideMenu" aria-hidden="true">
+		<div class="side-menu-header">
+			<span class="side-menu-title">메뉴</span>
+			<button type="button" class="menu-close" aria-label="메뉴 닫기">✕</button>
+		</div>
+
+		<ul class="side-menu-list">
+			<li>
+				<button type="button" class="side-menu-item" id="menuLogout">
+					로그아웃
+				</button>
+			</li>
+		</ul>
+	</nav>
+
+	<div class="side-menu-backdrop" id="sideMenuBackdrop"></div>
+
+	<div class="container receipt-container">
+		<header class="app-header receipt-header">
+			<button type="button" class="menu-toggle" aria-label="메뉴 열기">
+				<span></span>
+				<span></span>
+				<span></span>
+			</button>
+
+			<img src="/daeyanglogo.png" alt="DAEYANG" class="header-logo" />
+		</header>
+
+		<main class="receipt-main-card">
+			<section class="receipt-intro">
+				<h1 class="page-title">영수증 등록</h1>
+				<p class="page-desc">
+					핸드폰으로 바로 촬영하거나, 갤러리에 저장된 영수증 사진을 선택해 업로드해 주세요.
+				</p>
+			</section>
+
+			<section class="upload-panel">
+				<div class="upload-box">
+					<input type="file" id="receiptFile" accept="image/*" multiple hidden />
+
+					<div class="upload-icon" aria-hidden="true">📷</div>
+
+					<h2 class="upload-title">영수증 사진을 선택해 주세요</h2>
+					<p class="upload-desc">
+						카메라 촬영 또는 갤러리에서<br />선택할 수 있습니다.
+					</p>
+
+					<div class="upload-button-group">
+						<button type="button" class="secondary-btn" id="cameraBtn">
+							카메라로 촬영
+						</button>
+						<button type="button" class="secondary-btn" id="galleryBtn">
+							갤러리에서 선택
+						</button>
+					</div>
+				</div>
+
+				<div class="preview-wrap" id="previewWrap" hidden>
+					<div class="preview-head">
+						<h3 class="preview-title">선택한 영수증</h3>
+						<p class="file-count" id="fileCount"></p>
+					</div>
+
+					<div class="preview-grid" id="previewGrid"></div>
+
+					<div class="preview-actions">
+						<button type="button" class="secondary-btn" id="changeFileBtn">
+							이미지 추가 선택
+						</button>
+					</div>
+				</div>
+			</section>
+		</main>
+	</div>
+
+	<div class="actions receipt-actions">
+		<button id="uploadBtn" class="primary-btn upload-fixed-btn" disabled>업로드</button>
+	</div>
+
+	<div class="loading-overlay" id="loadingOverlay" hidden>
+		<div class="loading-box">
+			<div class="spinner"></div>
+			<p class="loading-title" id="loadingTitle">이미지 처리 중...</p>
+			<p class="loading-text" id="loadingText">잠시만 기다려 주세요.</p>
+		</div>
+	</div>
+
+	<script>
+		const KEY_EMP_NO = "CHECKSHEET_EMP_NO";
+		const KEY_EMP_ID = "CHECKSHEET_EMP_ID";
+		const KEY_EMP_PW = "CHECKSHEET_EMP_PW";
+
+		const MAX_FILES = 10;
+		const MAX_WIDTH = 1600;
+		const MAX_HEIGHT = 1600;
+		const JPEG_QUALITY = 0.82;
+
+		const receiptFile = document.getElementById("receiptFile");
+		const cameraBtn = document.getElementById("cameraBtn");
+		const galleryBtn = document.getElementById("galleryBtn");
+		const changeFileBtn = document.getElementById("changeFileBtn");
+		const uploadBtn = document.getElementById("uploadBtn");
+
+		const previewWrap = document.getElementById("previewWrap");
+		const previewGrid = document.getElementById("previewGrid");
+		const fileCount = document.getElementById("fileCount");
+
+		const loadingOverlay = document.getElementById("loadingOverlay");
+		const loadingTitle = document.getElementById("loadingTitle");
+		const loadingText = document.getElementById("loadingText");
+
+		const menuToggle = document.querySelector(".menu-toggle");
+		const sideMenu = document.getElementById("sideMenu");
+		const sideMenuBackdrop = document.getElementById("sideMenuBackdrop");
+		const menuCloseBtn = document.querySelector(".menu-close");
+
+		let selectedMode = "gallery";
+		let selectedItems = [];
+
+		document.addEventListener("DOMContentLoaded", () => {
+			const empNo = localStorage.getItem(KEY_EMP_NO);
+			if (!empNo) {
+				location.replace("receipt-login.html");
+				return;
+			}
+		});
+
+		function openMenu() {
+			sideMenu.classList.add("open");
+			sideMenuBackdrop.classList.add("show");
+			document.body.classList.add("no-scroll");
+			sideMenu.setAttribute("aria-hidden", "false");
+		}
+
+		function closeMenu() {
+			sideMenu.classList.remove("open");
+			sideMenuBackdrop.classList.remove("show");
+			document.body.classList.remove("no-scroll");
+			sideMenu.setAttribute("aria-hidden", "true");
+		}
+
+		menuToggle.addEventListener("click", openMenu);
+		menuCloseBtn.addEventListener("click", closeMenu);
+		sideMenuBackdrop.addEventListener("click", closeMenu);
+
+		document.addEventListener("keydown", (e) => {
+			if (e.key === "Escape" && sideMenu.classList.contains("open")) {
+				closeMenu();
+			}
+		});
+
+		document.getElementById("menuLogout").addEventListener("click", () => {
+			closeMenu();
+			localStorage.removeItem(KEY_EMP_NO);
+			localStorage.removeItem(KEY_EMP_ID);
+			localStorage.removeItem(KEY_EMP_PW);
+			location.replace("receipt-login.html");
+		});
+
+		function showLoading(title, text) {
+			loadingTitle.textContent = title || "처리 중...";
+			loadingText.textContent = text || "잠시만 기다려 주세요.";
+			loadingOverlay.hidden = false;
+		}
+
+		function hideLoading() {
+			loadingOverlay.hidden = true;
+		}
+
+		function updateLoadingProgress(current, total, fileName) {
+			showLoading(
+				"이미지 처리 중...",
+				`${current}/${total} 처리 중${fileName ? " - " + fileName : ""}`
+			);
+		}
+
+		function formatFileSize(bytes) {
+			if (bytes < 1024) return `${bytes}B`;
+			if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+			return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+		}
+
+		function readFileAsArrayBuffer(file) {
+			return new Promise((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(reader.result);
+				reader.onerror = reject;
+				reader.readAsArrayBuffer(file);
+			});
+		}
+
+		function readFileAsDataURL(file) {
+			return new Promise((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(reader.result);
+				reader.onerror = reject;
+				reader.readAsDataURL(file);
+			});
+		}
+
+		function loadImage(src) {
+			return new Promise((resolve, reject) => {
+				const img = new Image();
+				img.onload = () => resolve(img);
+				img.onerror = reject;
+				img.src = src;
+			});
+		}
+
+		function canvasToBlob(canvas, type, quality) {
+			return new Promise((resolve) => {
+				canvas.toBlob((blob) => resolve(blob), type, quality);
+			});
+		}
+
+		function getResizedSize(width, height, maxWidth, maxHeight) {
+			let newWidth = width;
+			let newHeight = height;
+
+			if (newWidth > maxWidth || newHeight > maxHeight) {
+				const ratio = Math.min(maxWidth / newWidth, maxHeight / newHeight);
+				newWidth = Math.round(newWidth * ratio);
+				newHeight = Math.round(newHeight * ratio);
+			}
+
+			return {width: newWidth, height: newHeight};
+		}
+
+		function getOrientationFromArrayBuffer(arrayBuffer) {
+			const view = new DataView(arrayBuffer);
+
+			if (view.byteLength < 2 || view.getUint16(0, false) !== 0xFFD8) {
+				return 1;
+			}
+
+			let offset = 2;
+
+			while (offset < view.byteLength) {
+				const marker = view.getUint16(offset, false);
+				offset += 2;
+
+				if (marker === 0xFFE1) {
+					const exifLength = view.getUint16(offset, false);
+					offset += 2;
+
+					if (view.getUint32(offset, false) !== 0x45786966) {
+						break;
+					}
+
+					const tiffOffset = offset + 6;
+					const little = view.getUint16(tiffOffset, false) === 0x4949;
+					const firstIFDOffset = view.getUint32(tiffOffset + 4, little);
+					let dirStart = tiffOffset + firstIFDOffset;
+					const entries = view.getUint16(dirStart, little);
+					dirStart += 2;
+
+					for (let i = 0; i < entries; i++) {
+						const entryOffset = dirStart + i * 12;
+						const tag = view.getUint16(entryOffset, little);
+
+						if (tag === 0x0112) {
+							return view.getUint16(entryOffset + 8, little);
+						}
+					}
+
+					break;
+				} else if ((marker & 0xFF00) !== 0xFF00) {
+					break;
+				} else {
+					offset += view.getUint16(offset, false);
+				}
+			}
+
+			return 1;
+		}
+
+		function getResizedSize(width, height, maxWidth, maxHeight) {
+			let newWidth = width;
+			let newHeight = height;
+
+			if (newWidth > maxWidth || newHeight > maxHeight) {
+				const ratio = Math.min(maxWidth / newWidth, maxHeight / newHeight);
+				newWidth = Math.round(newWidth * ratio);
+				newHeight = Math.round(newHeight * ratio);
+			}
+
+			return {width: newWidth, height: newHeight};
+		}
+
+		function readFileAsArrayBuffer(file) {
+			return new Promise((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(reader.result);
+				reader.onerror = reject;
+				reader.readAsArrayBuffer(file);
+			});
+		}
+
+		function readFileAsDataURL(file) {
+			return new Promise((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(reader.result);
+				reader.onerror = reject;
+				reader.readAsDataURL(file);
+			});
+		}
+
+		function loadImage(src) {
+			return new Promise((resolve, reject) => {
+				const img = new Image();
+				img.onload = () => resolve(img);
+				img.onerror = reject;
+				img.src = src;
+			});
+		}
+
+		function canvasToBlob(canvas, type, quality) {
+			return new Promise((resolve, reject) => {
+				canvas.toBlob((blob) => {
+					if (!blob) {
+						reject(new Error("canvasToBlob failed"));
+						return;
+					}
+					resolve(blob);
+				}, type, quality);
+			});
+		}
+
+		function generateFileName(empNo, index) {
+			const now = new Date();
+			const yyyy = now.getFullYear();
+			const MM = String(now.getMonth() + 1).padStart(2, "0");
+			const dd = String(now.getDate()).padStart(2, "0");
+			const HH = String(now.getHours()).padStart(2, "0");
+			const mm = String(now.getMinutes()).padStart(2, "0");
+			const ss = String(now.getSeconds()).padStart(2, "0");
+
+			return `${yyyy}${MM}${dd}_${HH}${mm}${ss}_${empNo}_${index}.jpg`;
+		}
+
+		async function compressAndNormalizeImage(file, index) {
+		  const empNo = localStorage.getItem("CHECKSHEET_EMP_NO") || "unknown";
+		  const arrayBuffer = await readFileAsArrayBuffer(file);
+		  const orientation = getOrientationFromArrayBuffer(arrayBuffer);
+		  const dataUrl = await readFileAsDataURL(file);
+		  const img = await loadImage(dataUrl);
+		  const resized = getResizedSize(img.width, img.height, MAX_WIDTH, MAX_HEIGHT);
+		  const canvas = document.createElement("canvas");
+		  canvas.width = resized.width;
+		  canvas.height = resized.height;
+
+		  const ctx = canvas.getContext("2d");
+		  ctx.drawImage(img, 0, 0, resized.width, resized.height);
+
+		  const blob = await canvasToBlob(canvas, "image/jpeg", JPEG_QUALITY);
+		  const newFileName = generateFileName(empNo, index);
+
+		  const compressedFile = new File([blob], newFileName, {
+		    type: "image/jpeg",
+		    lastModified: Date.now()
+		  });
+
+		  return {
+		    id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+		    originalFile: file,
+		    compressedFile,
+		    previewUrl: canvas.toDataURL("image/jpeg", 0.78)
+		  };
+		}
+
+		function generateFileName(empNo, index) {
+			const now = new Date();
+
+			const yyyy = now.getFullYear();
+			const MM = String(now.getMonth() + 1).padStart(2, "0");
+			const dd = String(now.getDate()).padStart(2, "0");
+			const HH = String(now.getHours()).padStart(2, "0");
+			const mm = String(now.getMinutes()).padStart(2, "0");
+			const ss = String(now.getSeconds()).padStart(2, "0");
+
+			return `${yyyy}${MM}${dd}_${HH}${mm}${ss}_${empNo}_${index}.jpg`;
+		}
+
+		function refreshCount() {
+			fileCount.textContent = `총 ${selectedItems.length}장 선택됨`;
+		}
+
+		function renderPreview() {
+			previewGrid.innerHTML = "";
+
+			if (!selectedItems.length) {
+				previewWrap.hidden = true;
+				uploadBtn.disabled = true;
+				fileCount.textContent = "";
+				return;
+			}
+
+			selectedItems.forEach((item, index) => {
+				const card = document.createElement("div");
+				card.className = "preview-item";
+
+				const removeBtn = document.createElement("button");
+				removeBtn.type = "button";
+				removeBtn.className = "remove-btn";
+				removeBtn.textContent = "×";
+				removeBtn.setAttribute("aria-label", `이미지 ${index + 1} 삭제`);
+				removeBtn.addEventListener("click", () => {
+					removeSelectedItem(item.id);
+				});
+
+				const img = document.createElement("img");
+				img.className = "preview-image";
+				img.alt = `영수증 미리보기 ${index + 1}`;
+				img.src = item.previewUrl;
+
+				const name = document.createElement("p");
+				name.className = "file-name";
+				name.textContent = item.compressedFile.name;
+
+				const info = document.createElement("p");
+				info.className = "file-info";
+				info.textContent =
+					`${formatFileSize(item.originalFile.size)} → ${formatFileSize(item.compressedFile.size)}`;
+
+				card.appendChild(removeBtn);
+				card.appendChild(img);
+				card.appendChild(name);
+				card.appendChild(info);
+				previewGrid.appendChild(card);
+			});
+
+			refreshCount();
+			previewWrap.hidden = false;
+			uploadBtn.disabled = false;
+		}
+
+		function removeSelectedItem(id) {
+			selectedItems = selectedItems.filter((item) => item.id !== id);
+			renderPreview();
+		}
+
+		async function handleFiles(fileList, appendMode = false) {
+			const files = Array.from(fileList || []).filter((file) => file.type.startsWith("image/"));
+
+			if (!files.length) return;
+
+			let remainingCount = MAX_FILES - selectedItems.length;
+			if (!appendMode) remainingCount = MAX_FILES;
+
+			const targetFiles = files.slice(0, remainingCount);
+
+			if (!appendMode) {
+				selectedItems = [];
+			}
+
+			for (let i = 0; i < targetFiles.length; i++) {
+				const file = targetFiles[i];
+				updateLoadingProgress(i + 1, targetFiles.length, file.name);
+
+				try {
+					const processed = await compressAndNormalizeImage(file, i);
+					selectedItems.push(processed);
+				} catch (error) {
+					console.error("이미지 처리 실패:", file.name, error);
+				}
+			}
+
+			hideLoading();
+			renderPreview();
+
+			if (files.length > targetFiles.length) {
+				alert(`최대 ${MAX_FILES}장까지 선택할 수 있습니다.`);
+			}
+		}
+
+		cameraBtn.addEventListener("click", () => {
+			selectedMode = "camera";
+			receiptFile.setAttribute("capture", "environment");
+			receiptFile.value = "";
+			receiptFile.click();
+		});
+
+		galleryBtn.addEventListener("click", () => {
+			selectedMode = "gallery";
+			receiptFile.removeAttribute("capture");
+			receiptFile.value = "";
+			receiptFile.click();
+		});
+
+		changeFileBtn.addEventListener("click", () => {
+			if (selectedItems.length >= MAX_FILES) {
+				alert(`최대 ${MAX_FILES}장까지 선택할 수 있습니다.`);
+				return;
+			}
+
+			if (selectedMode === "camera") {
+				receiptFile.setAttribute("capture", "environment");
+			} else {
+				receiptFile.removeAttribute("capture");
+			}
+
+			receiptFile.value = "";
+			receiptFile.click();
+		});
+
+		receiptFile.addEventListener("change", async () => {
+			const files = receiptFile.files;
+			if (!files || !files.length) return;
+
+			uploadBtn.disabled = true;
+			await handleFiles(files, true);
+		});
+
+		uploadBtn.addEventListener("click", async () => {
+			const empNo = localStorage.getItem(KEY_EMP_NO);
+
+			if (!empNo) {
+				location.replace("receipt-login.html");
+				return;
+			}
+
+			if (!selectedItems.length) {
+				alert("영수증 사진을 먼저 선택해 주세요.");
+				return;
+			}
+
+			uploadBtn.disabled = true;
+			showLoading("업로드 중...", "서버로 이미지를 전송하고 있습니다.");
+
+			try {
+				const formData = new FormData();
+				formData.append("empNo", empNo);
+
+				selectedItems.forEach((item) => {
+					formData.append("receiptImages", item.compressedFile);
+				});
+
+				const res = await fetch("/api/receipt/upload", {
+					method: "POST",
+					body: formData
+				});
+
+				let result = {};
+				try {
+					result = await res.json();
+				} catch (e) {
+					result = {};
+				}
+
+				if (res.ok) {
+					alert("영수증이 업로드되었습니다.");
+					location.href = "";
+				} else {
+					alert(result.message || "업로드 중 오류가 발생했습니다.");
+				}
+			} catch (e) {
+				console.error(e);
+				alert("업로드 중 오류가 발생했습니다.");
+			} finally {
+				hideLoading();
+				uploadBtn.disabled = !selectedItems.length;
+			}
+		});
+	</script>
+</body>
+
+</html>

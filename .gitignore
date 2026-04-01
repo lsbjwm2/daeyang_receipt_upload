@@ -1,0 +1,42 @@
+# IDE
+.project
+.classpath
+.settings/
+.factorypath
+.apt_generated/
+bin/
+.idea/
+*.iml
+.vscode/
+
+# Gradle
+# .gradle/
+# build/
+# !gradle/wrapper/gradle-wrapper.jar
+# !gradlew
+# !gradlew.bat
+
+# Gradle 산출물 전체(모든 하위 모듈 포함)
+/.gradle/
+/build/
+
+# wrapper는 무시하지 않음(모든 하위 폴더 포함)
+!/gradle/wrapper/gradle-wrapper.jar
+!/gradlew
+!/gradlew.bat
+
+# Logs / JVM
+*.log
+logs/
+hs_err_pid*
+replay_pid*.log
+
+# Optional
+jacoco.exec
+coverage/
+test-results/
+reports/
+application-local.yml
+application-local.properties
+.env
+*.env
