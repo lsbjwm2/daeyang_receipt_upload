@@ -12,19 +12,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Repository
 public class ReceiptRepository {
-	private final JdbcTemplate pgJdbc;
 	private final JdbcTemplate msJdbc;
-	private final NamedParameterJdbcTemplate pgNP;
 	private final NamedParameterJdbcTemplate msNP;
 	private final ObjectMapper objectMapper;
 
-	public ReceiptRepository(@Qualifier("postgresJdbcTemplate") JdbcTemplate pgJdbc,
-			@Qualifier("mssqlJdbcTemplate") JdbcTemplate msJdbc,
-			@Qualifier("postgresNamedJdbc") NamedParameterJdbcTemplate pgNP,
+	public ReceiptRepository(@Qualifier("mssqlJdbcTemplate") JdbcTemplate msJdbc,
 			@Qualifier("mssqlNamedJdbc") NamedParameterJdbcTemplate msNP, ObjectMapper objectMapper) {
-		this.pgJdbc = pgJdbc;
 		this.msJdbc = msJdbc;
-		this.pgNP = pgNP;
 		this.msNP = msNP;
 		this.objectMapper = objectMapper;
 	}
@@ -39,5 +33,20 @@ public class ReceiptRepository {
 		} catch (EmptyResultDataAccessException e) {
 			return null;
 		}
+	}
+
+	public int findNextSeq(String employeeId, String regDate) {
+		SQL = "SELECT ISNULL(MAX(SEQ), 0) + 1 " +
+			  "FROM PLC_RUN.dbo.Account_FileUrl WITH (UPDLOCK, HOLDLOCK) " +
+			  "WHERE Employee_ID = ? AND Reg_Date = ?";
+		Integer nextSeq = msJdbc.queryForObject(SQL, Integer.class, employeeId, regDate);
+		return nextSeq == null ? 1 : nextSeq;
+	}
+
+	public int insertAccountFileUrl(String employeeId, String regDate, int seq, String fileUrl, String fileName, String fileExt) {
+		SQL = "INSERT INTO PLC_RUN.dbo.Account_FileUrl " +
+			  "(Employee_ID, Reg_Date, SEQ, File_Url, File_Name, File_Ext, Electron_Doc_Numb, SAUPJANG, BUSEO, JPNO, GIPYOILJA) " +
+			  "VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL)";
+		return msJdbc.update(SQL, employeeId, regDate, seq, fileUrl, fileName, fileExt);
 	}
 }
